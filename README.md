@@ -110,3 +110,5 @@ claude-o-cli/
 ```
 
 A\ 1272 Hz - N| 1275 Hz - LATTICE LOCK - NEBELLION - KEY
+
+<img width="1382" height="856" alt="Screenshot 2026-07-07 105411" src="https://github.com/user-attachments/assets/14886a70-b8c2-4f53-a564-036e20945318" />
