@@ -657,6 +657,20 @@ for(const d of document.querySelectorAll('.tog')) d.onclick = () => {
 window.sendChat = sendChat; window.VO2 = VO;
 document.getElementById("sendb").onclick = () => sendChat(document.getElementById("vin").value, "type");
 document.getElementById("vin").addEventListener("keydown", e => { if(e.key === "Enter") sendChat(e.target.value, "type"); });
+/* the Windows voice app (dictation/Access) = text via the accessibility
+   layer: no real Enter keystroke ever fires. Settle-timer sends instead:
+   1.2s of no new input = send; a trailing newline = send at once. */
+let vinSill = null;
+(() => {
+  const vin = document.getElementById("vin");
+  vin.addEventListener("input", () => {
+    clearTimeout(vinSill);
+    const v = vin.value;
+    if(v.trim().endsWith("\n")){ sendChat(v, "type"); return; }
+    if(!v.trim()) return;
+    vinSill = setTimeout(() => { const t = vin.value.trim(); if(t) sendChat(t, "type"); }, 1200);
+  });
+})();
 document.getElementById("micb").onclick = () => { if(VO.speaking) return; VO.on ? (stopListen(), startListen()) : (VO.on = true, voiceUI(), startListen(), eqStart()); };
 voiceUI();
 
