@@ -277,6 +277,14 @@ def api_chat():
     system = data.get("system", "You are a helpful AI assistant.")
     history = data.get("history", [])
     max_loops = int(data.get("max_tool_loops") or 6)
+    # the standard chat contract: a full messages array rides as-is
+    if isinstance(data.get("messages"), list) and data["messages"]:
+        msgs = data["messages"]
+        message = msgs[-1].get("content", "") if msgs else ""
+        history = msgs[:-1]
+        _sys = next((m.get("content") for m in msgs if m.get("role") == "system"), None)
+        if _sys:
+            system = _sys
 
     # Identity models carry their own embedded identity in the weights —
     # never inject a system prompt that could override it.
