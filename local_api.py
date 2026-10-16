@@ -355,6 +355,43 @@ def api_chat():
         "tool_cycle": "shared",
     })
 
+@app.route("/api/harness", methods=["POST"])
+def api_harness():
+    """Same-origin pass-through to the PRO Cordis harness (8788).
+    Assembles its NDJSON chat stream into one final JSON — the browser stays
+    on a single same-origin fetch, no CORS, no stream loop client-side."""
+    import requests as _rq
+    data = request.json or {}
+    try:
+        up = _rq.post("http://127.0.0.1:8788/api/chat", json={**data, "stream": True}, timeout=240, stream=True)
+        content, thinking, last = [], [], {}
+        for line in up.iter_lines():
+            if not line:
+                continue
+            try:
+                chunk = json.loads(line.decode("utf-8", "replace"))
+            except Exception:
+                continue
+            last = chunk
+            msg = chunk.get("message") or {}
+            if msg.get("content"):
+                content.append(msg["content"])
+            if msg.get("thinking"):
+                thinking.append(msg["thinking"])
+        final = {"done": True, "model": (last.get("model") or data.get("model") or ""), "message": {"role": "assistant"}}
+        text = "".join(content).strip()
+        final["message"]["content"] = text if text else ("".join(thinking).strip()[-1500:] or "")
+        if "".join(thinking).strip() and text:
+            final["message"]["thinking"] = "".join(thinking).strip()[-1500:]
+        if data.get("history"):
+            final["history_echo"] = len(data["history"])
+        resp = app.response_class(json.dumps(final), status=200, mimetype="application/json")
+    except Exception as e:
+        resp = jsonify({"ok": False, "error": str(e), "harness": True})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/api/living-loop", methods=["GET"])
 def api_living_loop():
     """Living loop + supervisor + live in-process connection to Complete 20."""

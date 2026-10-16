@@ -171,7 +171,7 @@ body.dark #chat{background:var(--panel)}
 <div id="speak"><div class="who" id="s-who">NULL FRAME</div><div id="s-txt"></div></div>
 
 <div class="p" id="card"><div class="k" id="c-k"></div><div class="name" id="c-name"></div><div id="c-desc" style="color:var(--teal8); line-height:1.7"></div><div class="chiprow" id="c-chips"></div><div id="chipout"></div></div>
-<div class="p" id="chat">  <div style="display:flex; justify-content:space-between; align-items:center">    <div style="font-size:9px; letter-spacing:.3em; color:#44443f; font-weight:800">VOICE CHAT — DIGITAL EQ</div>    <div style="font-size:8px; letter-spacing:.18em; color:#8a8a84" id="vst">hands-free: off</div>  </div>  <div id="msgs"></div>  <div id="eq"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>  <div id="vrow">    <button class="vbtn" id="micb">MIC</button>    <input id="vin" placeholder="…or type — hands-free mic rides above">    <button class="vbtn" id="sendb">SEND</button>  </div></div>
+<div class="p" id="chat">  <div style="display:flex; justify-content:space-between; align-items:center">    <div style="font-size:9px; letter-spacing:.3em; color:#44443f; font-weight:800; cursor:pointer" id="chlbl" title="Click to switch chat: FABLE (local fable7) ⇄ HARNESS (pro cordis bridge)">VOICE CHAT — DIGITAL EQ · <span id="chmode">FABLE</span></div>    <div style="font-size:8px; letter-spacing:.18em; color:#8a8a84" id="vst">hands-free: off</div>  </div>  <div id="msgs"></div>  <div id="eq"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>  <div id="vrow">    <button class="vbtn" id="micb">MIC</button>    <input id="vin" placeholder="…or type — hands-free mic rides above">    <button class="vbtn" id="sendb">SEND</button>  </div></div>
 <div id="tip"></div>
 <div id="livebar">syncing…</div>
 
@@ -460,6 +460,12 @@ setInterval(teardownCard, 12000); teardownCard();
 const VO = { on: false, listening: false, speaking: false, recog: null, audio: null, an: null, data: null, src: null, wantStop: false };
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+const chlbl = document.getElementById("chlbl");
+  if(chlbl) chlbl.onclick = (e) => { e.stopPropagation();
+    CH_MODE = CH_MODE === "fable" ? "harness" : "fable";
+    document.getElementById("chmode").textContent = CH_MODE === "fable" ? "FABLE" : "HARNESS";
+    addMsg("bot", CH_MODE === "fable" ? "Channel → FABLE (local fable7)" : "Channel → HARNESS (pro cordis bridge · prime-cl)"); };
+
 function voiceUI(s){
   document.getElementById("vst").textContent = "hands-free: " + (VO.on? "ON — speak freely" : "off");
   const v = document.querySelector('.tog[data-t="voice"]'); if(v) v.classList.toggle("on", VO.on);
@@ -543,22 +549,79 @@ function eqLoop(){
 
 /* ── the chat send (the simple backend = the existing /api/chat on :5000) ── */
 const HIST = [];
+/* ── chat channels: FABLE (local) / HARNESS (pro cordis 8788) ── */
+let CH_MODE = "fable";
+const HARNESS_URL = "/api/harness";
+const HARNESS_MODEL = "deepseek-prime-cl-1q5duo5:compounded";
+/* ── the RE intent router: the chat = the front door to the null frame ── */
+const NF = "http://127.0.0.1:8090";
+function extractURL(s){ const m = (s||"").match(/https?:\/\/[^\s"'<>]+/); return m? m[0] : null; }
+function extractPath(s){ const m = (s||"").match(/[A-Za-z]:[\\\/][^\s"'<>]+/); return m? m[0] : null; }
+function routeRE(s){
+  const l = (s||"").toLowerCase();
+  const url = extractURL(s), path = extractPath(s);
+  if(/\b(vault|reports|list.*teardown|what.*captured|what.*assimilated)\b/.test(l)){
+    return async () => { const r = await fetch(NF + "/vault"); const d = await r.json();
+      return "THE VAULT (" + (d.reports||[]).length + "):\n" + (d.reports||[]).map(x=>"• "+x).join("\n"); };
+  }
+  if(/\b(compare|diff)\b/.test(l)){
+    const names = l.match(/[a-z0-9._-]+\.(json|md)/g);
+    return async () => { if(!names || names.length < 2) return "Give me two vault names to compare (teardown .json names).";
+      const r = await fetch(NF + "/compare", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({a: names[0], b: names[1]})});
+      const d = await r.json();
+      return "COMPARE " + names[0] + " → " + names[1] + "\nADDED:\n" + (d.added_in_b||[]).map(x=>"• "+x).join("\n") + "\n\nREMOVED:\n" + (d.removed_in_b||[]).map(x=>"• "+x).join("\n"); };
+  }
+  if(url && /\b(probe|open|live|watch|x-ray\b|xray|tear ?down|reverse|look)\b/.test(l)){
+    return async () => { const r = await fetch(NF + "/probe", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({url: url, shots: 3})});
+      const d = await r.json();
+      if(!d.ok) return "PROBE FAILED: " + (d.error||"");
+      return "PROBED " + url + " — " + d.summary.requests + " requests, " + d.summary.bytes_mb + " MB, stack: " + (d.summary.stack_signals||[]).join(", ") + ".\nTeardown in the vault: " + d.teardown + "\nSay BRIEF to get a rebuild brief."; };
+  }
+  if((path || url) && /\b(assimilate|reverse|tear ?down|null.?frame|rea)\b/.test(l)){
+    return async () => { const r = await fetch(NF + "/assimilate", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({target: path || url, name: ""})});
+      const d = await r.json();
+      return d.ok ? "ASSIMILATED — teardown landed: " + d.report + "\nmodules: " + (d.modules||0) + " · imports: " + (d.imports||0) : "ASSIMILATE FAILED: " + (d.error || "the target must be a local directory or .asar (websites ride /probe)"); };
+  }
+  return null;
+}
+
 async function sendChat(text, via){
   text = (text||"").trim(); if(!text) return;
   if(via === "voice"){ stopListen(); }
+  const rr = routeRE(text);
+  if(rr){
+    const box0 = document.getElementById("msgs");
+    const wr = document.createElement("div"); wr.className = "msg";
+    wr.innerHTML = '<div class="who">NULL FRAME · WORKING</div>on it…';
+    box0.appendChild(wr); box0.scrollTop = box0.scrollHeight;
+    try{
+      const out = await rr();
+      wr.innerHTML = '<div class="who">NULL FRAME</div>' + esc(out.slice(0, 1800));
+      box0.scrollTop = box0.scrollHeight;
+      HIST.push({role:"assistant", content: out});
+      if(VO.on) speakTTS(out);
+    }catch(e){ wr.innerHTML = '<div class="who">NULL FRAME</div>failed: ' + esc(e.message); }
+    return;
+  }
   const box = document.getElementById("msgs");
   const me = document.createElement("div"); me.className = "msg me";
   me.innerHTML = '<div class="who">YOU'+(via==="voice"?" · VOICE":"")+'</div>' + esc(text);
   box.appendChild(me); box.scrollTop = box.scrollHeight;
   document.getElementById("vin").value = "";
   HIST.push({ role: "user", content: text });
-  const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: HIST.slice(-12), model: "oroboros-labs/claude-fable7-undecillion-sse" }) }).catch(e=>null);
+  let r;
+  if(CH_MODE === "harness"){
+    r = await fetch(HARNESS_URL, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: HIST.slice(-12), model: HARNESS_MODEL }) }).catch(e=>null);
+  } else {
+    r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: HIST.slice(-12), model: "oroboros-labs/claude-fable7-undecillion-sse" }) }).catch(e=>null);
+  }
   if(r && r.ok){
     const d = await r.json();
     let a = "";
     const c = d && d.choices && d.choices[0] && d.choices[0].message;
-    a = (d.response ? d.response : (c ? (c.content||"") : (d.content||""))) || "";
+    a = (d.response ? d.response : (d.message ? (typeof d.message.content === "string" ? d.message.content : JSON.stringify(d.message.content)) : (c ? (c.content||"") : (d.content||"")))) || "";
     if(typeof a !== "string") a = JSON.stringify(a);
     const ai = document.createElement("div"); ai.className = "msg";
     ai.innerHTML = '<div class="who">OROBOROS ANTHROPIC</div>' + esc(a.slice(0, 1500));
