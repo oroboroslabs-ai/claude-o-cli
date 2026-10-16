@@ -451,6 +451,7 @@ async function teardownCard(){
 setInterval(teardownCard, 12000); teardownCard();
 </script>
 
+<script>
 /* ═══════════════ VOICE — THE TRUE HANDS-FREE LOOP ═══════════════
    STT = the Windows speech setup (the browser recognizer on Windows = the
    Windows speech engine; EDGE/CHROME = continuous). TTS = the Windows voices
@@ -652,6 +653,7 @@ document.getElementById("vin").addEventListener("keydown", e => { if(e.key === "
 document.getElementById("micb").onclick = () => { if(VO.speaking) return; VO.on ? (stopListen(), startListen()) : (VO.on = true, voiceUI(), startListen(), eqStart()); };
 voiceUI();
 
+</script>
 <script>
 function dial(){
   const rc=document.getElementById("ringcv"); if(!rc) return;
