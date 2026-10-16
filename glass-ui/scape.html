@@ -478,15 +478,22 @@ function pickTTS(){
     const vs = speechSynthesis.getVoices();
     if(!vs.length) return null;
     const want = ["rosa", "luna"];
-    for(const w of want){ const hit = vs.find(v => v.name.toLowerCase().includes(w)); if(hit) return hit; }
-    return vs.find(v => /^(en(-|_))?\s?(PH|US)/i.test(v.lang) && /female|zira|aria/i.test(v.name)) || vs.find(v=>/^en/i.test(v.lang)) || vs[0];
+    const norm = (s) => (s||"").replace(/microsoft\s+|desktop|online|natural/i, "").toLowerCase().trim();
+    for(const w of want){
+      const hit = vs.find(v => norm(v.name).startsWith(w)) ||
+                  vs.find(v => norm(v.name).includes(w)) ||
+                  vs.find(v => (v.lang||"").toLowerCase().startsWith("en") && norm(v.name).includes(w));
+      if(hit) return hit;
+    }
+    /* the Asian pack rides en-PH / en-US female even when Rosa/Luna stay hidden */
+    return vs.find(v => /^en-(PH|US)/i.test(v.lang)) || vs.find(v=>/^en/i.test(v.lang)) || vs[0];
   }catch{ return null; }
 }
 function speakTTS(txt, done){
   try{
     const u = new SpeechSynthesisUtterance(txt.slice(0, 900));
     const v = pickTTS(); if(v) { u.voice = v; u.lang = v.lang; }
-    u.rate = 1.02; u.pitch = 1.02; u.volume = .95;
+    u.rate = 1.3; u.pitch = 1.0; u.volume = .95;
     VO.speaking = true;
     if(VO.recog && VO.listening){ VO.wantStop = true; VO.recog.stop(); }
     u.onend = () => { VO.speaking = false; setTimeout(()=>{ if(VO.on) startListen(); }, 250); if(done) done(); };
