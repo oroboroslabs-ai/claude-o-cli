@@ -485,7 +485,7 @@ function pickTTS(){
   try{
     const vs = speechSynthesis.getVoices();
     if(!vs.length) return null;
-    const want = ["rosa", "luna"];
+    const want = ["rosa", "luna", "eva"];
     const norm = (s) => (s||"").replace(/microsoft\s+|desktop|online|natural/i, "").toLowerCase().trim();
     for(const w of want){
       const hit = vs.find(v => norm(v.name).startsWith(w)) ||
