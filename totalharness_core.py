@@ -185,6 +185,28 @@ def file_op():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.post("/api/torsearch")
+def torsearch():
+    """Fringe tech search through Tor (SOCKS 9050) — the research ride, not WorldFeed."""
+    d = request.get_json(force=True) or {}
+    q = d.get("query") or ""
+    import re as _re
+    import html as _html
+    import requests as _rq
+    PROX = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
+    UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
+    try:
+        r = _rq.post("https://html.duckduckgo.com/html/", data={"q": q, "kl": "wt-wt"}, headers=UA, proxies=PROX, timeout=60)
+        rows = _re.findall(r'class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', r.text)
+        out = []
+        for u, t in rows[:8]:
+            t = _html.unescape(_re.sub(r"<[^>]+>", " ", t))
+            out.append({"title": _re.sub(r"\s+", " ", t).strip()[:120], "url": u})
+        return jsonify({"ok": True, "tor": True, "status": r.status_code, "query": q, "results": out})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e), "tor": True}), 502
+
+
 if __name__ == "__main__":
     print(f"TOTALHARNESS CORE unlocked — http://127.0.0.1:{HOST_PORT if False else PORT} — crown {CROWN} Hz")
     app.run(host=HOST, port=PORT, debug=False, use_reloader=False)
