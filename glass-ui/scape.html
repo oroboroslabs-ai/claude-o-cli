@@ -232,7 +232,7 @@ const COLORS = {
 };
 const KINDS = {core:"CORE RUNTIME", q:"Q LINE", feed:"FEEDS + HUMANITY", prog:"HARNESS + PROGRAMS", ref:"REFERENCE", crown:"NEURAL LOCK", void:"VOID"};
 
-const cv=document.getElementById("scape"), ctx=cv.getContext("2d"), DPR=Math.min(devicePixelRatio||1,2);
+const cv=document.getElementById("scape"), ctx=cv.getContext("2d"), DPR=Math.min(devicePixelRatio||1,1.5);
 let W,H; function resize(){ W=cv.width=innerWidth*DPR; H=cv.height=innerHeight*DPR; cv.style.width=innerWidth+"px"; cv.style.height=innerHeight+"px"; }
 addEventListener("resize", resize); resize();
 
@@ -281,10 +281,13 @@ function drawOrb(n, time){
   const c = NODECOLORS[n.id] || PAL()[n.kind] || PAL().core;
   const pul = (n.up===true? 1+0.32*Math.sin(time*2.6+n.th*5) : n.up===false? 0.62 : 0.8+0.06*Math.sin(time+n.th));
   const R = RR*(n.id==="nlock"? (1+0.3*Math.sin(time*1.7)) : 1)*pul;
-  // halo
-  let g = ctx.createRadialGradient(P.sx,P.sy,R*0.55, P.sx,P.sy,R*1.22);
-  g.addColorStop(0, FA(c[0],0.55)); g.addColorStop(0.55, FA(c[0],0.16)); g.addColorStop(1, FA(c[0],0));
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(P.sx,P.sy,R*1.22,0,7); ctx.fill();
+  // halo — flat alpha disc (gradient-free, the Glasswing way)
+  ctx.globalAlpha = 0.22; ctx.fillStyle = c[0];
+  ctx.beginPath(); ctx.arc(P.sx,P.sy,R*1.22,0,7); ctx.fill();
+  ctx.globalAlpha = 0.18;
+  ctx.beginPath(); ctx.arc(P.sx,P.sy,R*1.5,0,7); ctx.fill();
+  ctx.globalAlpha = 1;
+  let g;
   // body
   g = ctx.createRadialGradient(P.sx-R*0.35, P.sy-R*0.35, R*0.05, P.sx,P.sy,R);
   g.addColorStop(0,"#f4f4f2"); g.addColorStop(0.30, c[1]); g.addColorStop(0.85, c[0]); g.addColorStop(1, FA(c[0],1));
@@ -304,7 +307,10 @@ function drawOrb(n, time){
 function FA(hex,a){ const v=parseInt(hex.slice(1),16); return `rgba(${v>>16&255},${v>>8&255},${v&255},${a})`; }
 
 let vitals = "";
+let LAST_DRAW = 0;
 function frame(ms){
+  if(ms - LAST_DRAW < 33){ requestAnimationFrame(frame); return; }
+  LAST_DRAW = ms;
   const t=ms/1000;
   ctx.setTransform(1,0,0,1,0,0);
   ctx.fillStyle=document.body.classList.contains("dark")? "#0b0f11":"#f7f7f4"; ctx.fillRect(0,0,W,H);
@@ -463,9 +469,11 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const chlbl = document.getElementById("chlbl");
   if(chlbl) chlbl.onclick = (e) => { e.stopPropagation();
-    CH_MODE = CH_MODE === "fable" ? "harness" : "fable";
-    document.getElementById("chmode").textContent = CH_MODE === "fable" ? "FABLE" : "HARNESS";
-    addMsg("bot", CH_MODE === "fable" ? "Channel → FABLE (local fable7)" : "Channel → HARNESS (pro cordis bridge · prime-cl)"); };
+    const order = ["fable", "deep", "harness"];
+    CH_MODE = order[(order.indexOf(CH_MODE) + 1) % 3];
+    document.getElementById("chmode").textContent = CH_LABEL[CH_MODE];
+    const note = { fable: "FABLE (local fable7 · fast)", deep: "DEEP (deepseek-prime-pcu · the brain)", harness: "HARNESS (pro cordis bridge · prime-cl)" }[CH_MODE];
+    wrChat(note); };
 
 function voiceUI(s){
   document.getElementById("vst").textContent = "hands-free: " + (VO.on? "ON — speak freely" : "off");
@@ -561,6 +569,8 @@ const HIST = [];
 let CH_MODE = "fable";
 const HARNESS_URL = "/api/harness";
 const HARNESS_MODEL = "deepseek-prime-cl-1q5duo5:compounded";
+const DEEP_MODEL = "deepseek-prime-pcu:live";
+const CH_LABEL = { fable: "FABLE", deep: "DEEP", harness: "HARNESS" };
 /* ── the RE intent router: the chat = the front door to the null frame ── */
 const NF = "http://127.0.0.1:8090";
 function extractURL(s){ const m = (s||"").match(/https?:\/\/[^\s"'<>]+/); return m? m[0] : null; }
@@ -623,7 +633,7 @@ async function sendChat(text, via){
       body: JSON.stringify({ messages: HIST.slice(-12), model: HARNESS_MODEL }) }).catch(e=>null);
   } else {
     r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: HIST.slice(-12), model: "oroboros-labs/claude-fable7-undecillion-sse" }) }).catch(e=>null);
+      body: JSON.stringify({ messages: HIST.slice(-12), model: CH_MODE === "deep" ? DEEP_MODEL : "oroboros-labs/claude-fable7-undecillion-sse" }) }).catch(e=>null);
   }
   if(r && r.ok){
     const d = await r.json();
@@ -641,6 +651,12 @@ async function sendChat(text, via){
     ai.innerHTML = '<div class="who">BACKEND</div>The chat bridge did not answer (' + (r? r.status : "network") + '). Run J:\\start-systemscape.bat.';
     box.appendChild(ai); box.scrollTop = box.scrollHeight;
   }
+}
+function wrChat(txt){
+  const box = document.getElementById("msgs");
+  const w = document.createElement("div"); w.className = "msg";
+  w.innerHTML = '<div class="who">EYE</div>' + esc(txt);
+  box.appendChild(w); box.scrollTop = box.scrollHeight;
 }
 function esc(s){ const d = document.createElement("div"); d.textContent = s||""; return d.innerHTML; }
 
